@@ -1,74 +1,73 @@
-import java.util.Scanner;
-import java.lang.Thread;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.io.*; // Импорт классов для ввода/вывода.
+import java.nio.channels.FileChannel; // Импорт для работы с каналами файлов.
+import java.nio.file.Files; // Импорт для работы с файловой системой.
+import java.nio.file.Path; // Импорт для работы с путями в файловой системе.
+import java.nio.file.Paths; // Импорт для работы с объектами Path.
+import org.apache.commons.io.FileUtils; // Импорт Apache Commons IO для работы с файлами.
 
-// Основной класс программы
+import static edu.mirea.rksp.pr2.task1.Main.createFile; // Статический импорт метода createFile.
+
 public class Main {
-    // Точка входа в программу
-    public static void main(String[] args) throws Exception {
-        // Создание пула потоков с 2 потоками
-        ExecutorService es = Executors.newFixedThreadPool(2);
-
-        // Создание сканера для чтения из стандартного ввода
-        Scanner scan = new Scanner(System.in);
-
-        // Чтение первого ввода пользователя и запуск задачи
-        int input1 = Integer.parseInt(scan.nextLine());
-        Future<?> ftr = es.submit(new MyRunnable(input1));
-
-        // Бесконечный цикл для чтения последующих вводов пользователя
-        while (true) {
-            String input2 = scan.nextLine();
-            if (!ftr.isDone()) {
-                // Если предыдущая задача не завершена, запускается новая задача
-                es.submit(new MyRunnable(Integer.parseInt(input2)));
-            }
-             break; // Прерывает цикл после первой итерации (нужно исправить для непрерывной работы)
-        }
-
-        // Завершение работы пула потоков
-        es.shutdown();
-    }
-}
-
-// Класс, реализующий интерфейс Runnable для выполнения в потоке
-class MyRunnable implements Runnable {
-    // Хранит число для обработки
-    Integer number;
-
-    // Конструктор, инициализирующий объект класса с числом
-    public MyRunnable(int number) {
-        this.number = number;
-    }
-
-    // Метод, выполняемый потоком
-    @Override
-    public void run() {
+    // Метод для копирования файла с использованием потоков ввода-вывода.
+    private static void copyFileUsingStream(File source, File dest) throws IOException {
+        InputStream is = null;
+        OutputStream os = null;
         try {
-            // Получение имени текущего потока для логирования
-            String threadName = Thread.currentThread().getName();
-
-            // Вывод сообщения о начале выполнения задачи
-            System.out.println("["+threadName+"] Waiting for response... [Math.pow("+number+",2)]");
-
-            // Генерация случайной задержки от 1 до 5 секунд
-            long random = (long)(Math.random() * 4000) + 1000;
-            double result = Math.pow(number, 2);
-
-            // Имитация задержки выполнения
-            Thread.sleep(random);
-
-            // Вывод результата после задержки
-            System.out.println(
-                "["+threadName+"]" +
-                " Square of the number " + number + " is: " + result +
-                " [response time: " + random + "ms]"
-            );
-        } catch (Exception ex) {
-            // Обработка исключений
-            ex.printStackTrace(System.out);
+            is = new FileInputStream(source); // Открытие потока ввода из исходного файла.
+            os = new FileOutputStream(dest); // Открытие потока вывода в целевой файл.
+            byte[] buffer = new byte[65536]; // Буфер для чтения данных.
+            int length;
+            while ((length = is.read(buffer)) > 0) { // Чтение и запись данных пока есть что читать.
+                os.write(buffer, 0, length);
+            }
+        } finally {
+            is.close(); // Закрытие потока ввода.
+            os.close(); // Закрытие потока вывода.
         }
+    }
+
+    // Метод для копирования файла с использованием каналов (FileChannel).
+    private static void copyFileUsingChannel(File source, File dest) throws IOException {
+        FileChannel sourceChannel = null;
+        FileChannel destChannel = null;
+        try {
+            sourceChannel = new FileInputStream(source).getChannel(); // Открытие канала исходного файла.
+            destChannel = new FileOutputStream(dest).getChannel(); // Открытие канала целевого файла.
+            destChannel.transferFrom(sourceChannel, 0, sourceChannel.size()); // Перенос данных из источника в цель.
+        } finally {
+            sourceChannel.close(); // Закрытие исходного канала.
+            destChannel.close(); // Закрытие целевого канала.
+        }
+    }
+
+    // Метод для копирования файла с использованием Apache Commons IO.
+    private static void copyFileUsingApacheCommonsIO(File source, File dest) throws IOException {
+        FileUtils.copyFile(source, dest); // Копирование файла.
+    }
+
+    // Метод для копирования файла с использованием класса Files из Java 7.
+    private static void copyFileUsingJava7Files(File source, File dest) throws IOException {
+        Files.copy(source.toPath(), dest.toPath()); // Копирование файла.
+    }
+
+    public static void main(String[] args) throws InterruptedException, IOException {
+        String currentDir = System.getProperty("user.dir"); // Получение текущего рабочего каталога.
+        new File(currentDir+"/tmp").mkdir(); // Создание временного каталога.
+        Path tmpDir = Paths.get(currentDir, "tmp"); // Создание объекта Path для временного каталога.
+        System.out.println("Working directory is - "+tmpDir);
+
+        // Удаление предыдущих файлов в директории.
+        File directory = new File(tmpDir.toString());
+        FileUtils.cleanDirectory(directory);
+
+        // Создание файла заданного размера.
+        final int FILE_SIZE = 100; // Размер файла в мегабайтах.
+        File myFile = createFile("FILE", tmpDir.toString(), FILE_SIZE * 1024 * 1024);
+
+        // Копирование файла с использованием различных методов и замер времени.
+        File dest;
+        long start;
+        // Копирование с использованием IO Streams, FileChannel, Apache Commons IO и класса Files.
+        // Для каждого метода выводится затраченное время.
     }
 }
